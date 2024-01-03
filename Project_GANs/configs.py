@@ -1,8 +1,8 @@
 import torch
 
 DATALOADER_CONFIG = {
-    "path_paintings": ".\\gan-getting-started\\monet_jpg",
-    "path_photos": ".\\gan-getting-started\\photo_jpg",
+    "path_paintings": "./gan-getting-started/monet_jpg",
+    "path_photos": "./gan-getting-started/photo_jpg",
     "num_workers": 2,
     "pin_memory": torch.cuda.is_available(),
     "persistent_workers": True,
