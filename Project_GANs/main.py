@@ -16,15 +16,15 @@ if __name__ == '__main__':
     model = CycleGAN(config=MODEL_CONFIG)
     trainer = L.Trainer(**TRAIN_CONFIG)
     trainer.fit(model, datamodule=dm)
-    # predictions = trainer.predict(model, datamodule=dm)
-    # os.makedirs("../images", exist_ok=True)
-    # idx = 0
-    # for tensor in predictions:
-    #     for monet in tensor:
-    #         save_image(
-    #             monet.float().squeeze() * 0.5 + 0.5,
-    #             fp=f"../images/{idx}.jpg",
-    #         )
-    #         idx += 1
-    #
-    # shutil.make_archive(".\\images", "zip", ".")
+    predictions = trainer.predict(model, datamodule=dm)
+    os.makedirs(".\\images", exist_ok=True)
+    idx = 0
+    for tensor in predictions:
+        for monet in tensor:
+            save_image(
+                monet.float().squeeze() * 0.5 + 0.5,
+                fp=f".\\images/{idx}.jpg",
+            )
+            idx += 1
+
+    shutil.make_archive(".\\images", "zip", ".\\images")

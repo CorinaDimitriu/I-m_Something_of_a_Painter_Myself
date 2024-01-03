@@ -319,7 +319,8 @@ class CycleGAN(L.LightningModule):
         predictions = self.trainer.predict_loop.predictions
         num_batches = len(predictions)
         batch_size = predictions[0].shape[0]
-        print(f"Number of images generated: {num_batches * batch_size}")
+        last_batch_diff = batch_size - predictions[-1].shape[0]
+        print(f"Number of images generated: {num_batches * batch_size - last_batch_diff}")
 
     # def on_validation_end(self):
     #     logged_values = self.trainer.progress_bar_metrics
