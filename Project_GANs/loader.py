@@ -2,7 +2,7 @@ import pytorch_lightning as L
 from pytorch_lightning.utilities import CombinedLoader
 from torch.utils.data import DataLoader
 
-import utils
+from utils import build_dataset
 from dataset import CustomDataset
 
 
@@ -16,9 +16,9 @@ class CustomLoader(L.LightningDataModule):
         path_photos = self.config['path_photos']
         if stage == "fit":
             path_paintings = self.config['path_paintings']
-            self.paintings = CustomDataset(path_paintings, utils.build_dataset, self.transform)
-            self.photos = CustomDataset(path_photos, utils.build_dataset, self.transform)
-        self.valid_photos = CustomDataset(path_photos, utils.build_dataset, self.transform, training=False)
+            self.paintings = CustomDataset(path_paintings, build_dataset, self.transform)
+            self.photos = CustomDataset(path_photos, build_dataset, self.transform)
+        self.valid_photos = CustomDataset(path_photos, build_dataset, self.transform, training=False)
 
     def train_dataloader(self):
         loader_monet = DataLoader(self.paintings, shuffle=True, drop_last=True,
@@ -33,6 +33,7 @@ class CustomLoader(L.LightningDataModule):
                                   num_workers=self.config['num_workers'])
         loaders = {"monet": loader_monet, "photo": loader_photo}
         return CombinedLoader(loaders, mode="max_size_cycle")
+        # return loader_monet
 
     def val_dataloader(self):
         return DataLoader(self.valid_photos, batch_size=self.config['sample_size'],

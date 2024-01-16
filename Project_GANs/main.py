@@ -4,7 +4,7 @@ from multiprocessing import freeze_support
 import pytorch_lightning as L
 from torchvision.utils import save_image
 
-from cycleGAN import CycleGAN
+from unet_discriminator_cycleGAN import CycleGAN
 from loader import CustomLoader
 from configs import DATALOADER_CONFIG, MODEL_CONFIG, TRAIN_CONFIG
 from processing import Augmentation
@@ -23,7 +23,7 @@ if __name__ == '__main__':
         for monet in tensor:
             save_image(
                 monet.float().squeeze() * 0.5 + 0.5,
-                fp=f".\\images/{idx}.jpg",
+                fp=f".\\images\\{idx}.jpg",
             )
             idx += 1
 

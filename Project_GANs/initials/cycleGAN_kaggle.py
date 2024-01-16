@@ -1,7 +1,11 @@
+import math
+
 import numpy as np
 import torch
 import pytorch_lightning as L
 
+from configs import DATALOADER_CONFIG
+from cutmix_mixup import CutMix
 from utils_kaggle import plot_images
 
 
@@ -90,7 +94,7 @@ class Discriminator(torch.nn.Module):
         )
 
     def forward(self, x):
-        return self.block(x)
+        return self.block(x), (self.block[:-2])(x)
 
 
 class ImageBuffer:
@@ -126,7 +130,8 @@ class ImageBuffer:
 class CycleGAN(L.LightningModule):
     def __init__(self, hidden_channels, optimizer, lr, betas,
                  lambda_idt, lambda_cycle, buffer_size,
-                 num_epochs, decay_epochs):
+                 num_epochs, decay_epochs,
+                 k_decay, k_initial, k_minimum, starting_k_decay, **kwargs):
         super().__init__()
         self.recon_P = None
         self.recon_M = None
@@ -145,6 +150,11 @@ class CycleGAN(L.LightningModule):
         self.disc_P = Discriminator(hidden_channels=hidden_channels)
         self.buffer_fake_M = ImageBuffer(buffer_size)
         self.buffer_fake_P = ImageBuffer(buffer_size)
+        self.k_decay = k_decay
+        self.k = k_initial
+        self.k_minimum = k_minimum
+        self.starting_k_decay = starting_k_decay
+        self.gamma_loss = 1e-4
 
     def forward(self, image):
         return self.gen_PM(image)
@@ -191,7 +201,7 @@ class CycleGAN(L.LightningModule):
         return torch.nn.functional.l1_loss(y_hat, y)
 
     def get_adv_loss(self, fake, discriminate):
-        fake_hat = discriminate(fake)
+        fake_hat = discriminate(fake)[0]
         real_labels = torch.ones_like(fake_hat)
         adv_loss = self.adv_criterion(fake_hat, real_labels)
         return adv_loss
@@ -200,9 +210,13 @@ class CycleGAN(L.LightningModule):
         idt_loss = self.recon_criterion(idt, real)
         return self.hparams.lambda_idt * lambda_cycle * idt_loss
 
-    def get_cycle_loss(self, real, recon, lambda_cycle):
+    def get_cycle_loss(self, real, recon, lambda_cycle, disc):
+        d_real_loss = disc(real)[1]
+        d_recon_loss = disc(recon)[1]
         cycle_loss = self.recon_criterion(recon, real)
-        return lambda_cycle * cycle_loss
+        feat_loss = self.recon_criterion(d_real_loss, d_recon_loss)
+        return ((1 - self.gamma_loss) * lambda_cycle * cycle_loss
+                + self.gamma_loss * lambda_cycle * feat_loss)
 
     def get_gen_loss(self):
         adv_loss_PM = self.get_adv_loss(self.fake_M, self.disc_M)
@@ -214,23 +228,34 @@ class CycleGAN(L.LightningModule):
         idt_loss_PP = self.get_idt_loss(self.real_P, self.idt_P, lambda_cycle[1])
         total_idt_loss = idt_loss_MM + idt_loss_PP
 
-        cycle_loss_MPM = self.get_cycle_loss(self.real_M, self.recon_M, lambda_cycle[0])
-        cycle_loss_PMP = self.get_cycle_loss(self.real_P, self.recon_P, lambda_cycle[1])
+        cycle_loss_MPM = self.get_cycle_loss(self.real_M, self.recon_M, lambda_cycle[0], self.disc_M)
+        cycle_loss_PMP = self.get_cycle_loss(self.real_P, self.recon_P, lambda_cycle[1], self.disc_P)
         total_cycle_loss = cycle_loss_MPM + cycle_loss_PMP
 
-        gen_loss = total_adv_loss + total_idt_loss + total_cycle_loss
+        cutmix_labels, c1, c2, c3, c4 = CutMix(DATALOADER_CONFIG['image_size'])
+        real_1 = self.real_M.clone()
+        real_1[:, :, c1:c2, c3:c4] = self.fake_M[:, :, c1:c2, c3:c4].clone()
+        real_2 = self.real_P.clone()
+        real_2[:, :, c1:c2, c3:c4] = self.fake_P[:, :, c1:c2, c3:c4].clone()
+        mix_loss = (self.recon_criterion(self.real_P * cutmix_labels.to(self.fake_P.device)
+                                         + self.fake_P * (1 - cutmix_labels.to(self.fake_P.device)), real_2)
+                    + self.recon_criterion(self.real_M * cutmix_labels.to(self.fake_M.device)
+                                           + self.fake_M * (1 - cutmix_labels.to(self.fake_M.device)), real_1))
+
+        gen_loss = total_adv_loss + total_idt_loss + total_cycle_loss + mix_loss
         return gen_loss
 
     def get_disc_loss(self, real, fake, disc):
-        real_hat = disc(real)
+        real_hat = disc(real)[0]
         real_labels = torch.ones_like(real_hat)
         real_loss = self.adv_criterion(real_hat, real_labels)
 
-        fake_hat = disc(fake.detach())
+        fake_hat = disc(fake.detach())[0]
         fake_labels = torch.zeros_like(fake_hat)
         fake_loss = self.adv_criterion(fake_hat, fake_labels)
 
         disc_loss = (fake_loss + real_loss) * 0.5
+
         return disc_loss
 
     def get_disc_loss_M(self):
@@ -262,10 +287,10 @@ class CycleGAN(L.LightningModule):
         opt_gen.step()
         self.untoggle_optimizer(opt_gen)
 
+        opt_disc.zero_grad()
         self.toggle_optimizer(opt_disc)
         disc_loss_M = self.get_disc_loss_M()
         disc_loss_P = self.get_disc_loss_P()
-        opt_disc.zero_grad()
         self.manual_backward(disc_loss_M)
         self.manual_backward(disc_loss_P)
         opt_disc.step()
@@ -305,12 +330,14 @@ class CycleGAN(L.LightningModule):
     def on_train_epoch_end(self):
         for scheduler in self.lr_schedulers():
             scheduler.step()
-        logged_values = self.trainer.progress_bar_metrics
-        print(
-            f"Epoch {self.current_epoch + 1}",
-            *[f"{k}: {v:.5f}" for k, v in logged_values.items()],
-            sep=" - ",
-        )
+        if self.current_epoch >= self.starting_k_decay:
+            self.k = max(math.ceil(self.k * self.k_decay), self.k_minimum)
+        # logged_values = self.trainer.progress_bar_metrics
+        # print(
+        #     f"Epoch {self.current_epoch + 1}",
+        #     *[f"{k}: {v:.5f}" for k, v in logged_values.items()],
+        #     sep=" - ",
+        # )
 
     def on_train_end(self):
         print("Training ended.")

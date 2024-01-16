@@ -1,4 +1,6 @@
 import os
+import shutil
+
 import torch
 from matplotlib import pyplot as plt
 from torchvision.utils import make_grid
@@ -16,8 +18,8 @@ def plot_images(t_image, lines, title=""):
 
 DEBUG = False
 DM_CONFIG = {
-    "monet_origin": os.path.join("../gan-getting-started/monet_jpg", "*.jpg"),
-    "photos_origin": os.path.join("../gan-getting-started/photo_jpg", "*.jpg"),
+    "monet_origin": os.path.join(".\\gan-getting-started\\monet_jpg", "*.jpg"),
+    "photos_origin": os.path.join(".\\gan-getting-started\\photo_jpg", "*.jpg"),
 
     "loader_config": {
         "num_workers": 2,
@@ -36,9 +38,13 @@ MODEL_CONFIG = {
     "lambda_cycle": (10, 10),  # (M-P-M, P-M-P)
     "buffer_size": 100,
     # total number of epochs
-    "num_epochs": 18 if not DEBUG else 2,
+    "num_epochs": 50 if not DEBUG else 2,
     # number of epochs before starting to decay the learning rate
-    "decay_epochs": 18 if not DEBUG else 1
+    "decay_epochs": 50 if not DEBUG else 1,
+    "k_decay": 0.9,
+    "k_initial": 30,
+    "k_minimum": int(30 * 2 / 3),
+    "starting_k_decay": 0
 }
 TRAIN_CONFIG = {
     "accelerator": "gpu" if torch.cuda.is_available() else "cpu",
@@ -53,5 +59,5 @@ TRAIN_CONFIG = {
     "limit_val_batches": 1,
     # "limit_test_batches": 5,
     "num_sanity_val_steps": 0,
-    "check_val_every_n_epoch": 1 if not DEBUG else 1
+    "check_val_every_n_epoch": 6 if not DEBUG else 1
 }
