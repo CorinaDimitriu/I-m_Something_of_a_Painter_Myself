@@ -1,7 +1,7 @@
 ## Important components ##
 
 * Kaggle notebook: https://www.kaggle.com/code/corinacode/gan-getting-started
-* Competition score: 39.87871 (8th place)
+* Competition score: 39.87871 (7th place)
 
 ***
 The solution builds a Cycle GAN model (having a U-Net model as generator) with a suite of improvements regarding the loss functions and parameters: 
