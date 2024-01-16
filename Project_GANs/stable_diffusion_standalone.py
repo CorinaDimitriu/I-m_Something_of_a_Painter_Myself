@@ -243,20 +243,50 @@ class NoiseScheduler(torch.nn.Module):
         self.sqrt_one_minus_alphas_cum_prod = torch.sqrt(1. - alphas_cum_prod)
         self.posterior_variance = self.scheduler * (1. - alphas_cum_prod_prev) / (1. - alphas_cum_prod)
 
-    def forward_diffusion_sample(self, x_0, t, device=torch.device("cuda"), noise=True):
+    def forward_diffusion_sample(self, x_0, t, device=torch.device("cuda"), noise=True, sampled_noise=None):
         if noise:
-            noise = torch.randn_like(x_0)
+            sampled_noise = torch.randn_like(x_0)
         sqrt_alphas_cum_prod_t = get_index_from_list(self.sqrt_alphas_cum_prod, t, x_0.shape)
         sqrt_one_minus_alphas_cum_prod_t = get_index_from_list(
             self.sqrt_one_minus_alphas_cum_prod, t, x_0.shape)
         # mean + variance
         if noise:
             return (torch.clamp(sqrt_alphas_cum_prod_t.to(device) * x_0.to(device)
-                                + sqrt_one_minus_alphas_cum_prod_t.to(device) * noise.to(device), -1, 1),
-                    noise.to(device))
+                                + sqrt_one_minus_alphas_cum_prod_t.to(device) * sampled_noise.to(device), -1, 1),
+                    sampled_noise.to(device))
         else:
             return torch.clamp(sqrt_alphas_cum_prod_t.to(device) * x_0.to(device)
-                               + sqrt_one_minus_alphas_cum_prod_t.to(device) * noise.to(device), -1, 1)
+                               + sqrt_one_minus_alphas_cum_prod_t.to(device) * sampled_noise.to(device), -1, 1)
+
+
+# class NoiseScheduler(torch.nn.Module):
+#     def __init__(self, time_steps):
+#         super().__init__()
+#         self.time_steps = time_steps
+#         self.scheduler = torch.linspace(0.0001, 0.02, self.time_steps)
+#
+#         alphas = 1. - self.scheduler
+#         alphas_cum_prod = torch.cumprod(alphas, dim=0)
+#         self.sqrt_recip_alphas = torch.sqrt(1.0 / alphas)
+#         alphas_cum_prod_prev = torch.nn.functional.pad(alphas_cum_prod[:-1], (1, 0), value=1.0)
+#         self.sqrt_alphas_cum_prod = torch.sqrt(alphas_cum_prod)
+#         self.sqrt_one_minus_alphas_cum_prod = torch.sqrt(1. - alphas_cum_prod)
+#         self.posterior_variance = self.scheduler * (1. - alphas_cum_prod_prev) / (1. - alphas_cum_prod)
+#
+#     def forward_diffusion_sample(self, x_0, t, device=torch.device("cuda"), noise=True):
+#         if noise:
+#             noise = torch.randn_like(x_0)
+#         sqrt_alphas_cum_prod_t = get_index_from_list(self.sqrt_alphas_cum_prod, t, x_0.shape)
+#         sqrt_one_minus_alphas_cum_prod_t = get_index_from_list(
+#             self.sqrt_one_minus_alphas_cum_prod, t, x_0.shape)
+#         # mean + variance
+#         if noise:
+#             return (torch.clamp(sqrt_alphas_cum_prod_t.to(device) * x_0.to(device)
+#                                 + sqrt_one_minus_alphas_cum_prod_t.to(device) * noise.to(device), -1, 1),
+#                     noise.to(device))
+#         else:
+#             return torch.clamp(sqrt_alphas_cum_prod_t.to(device) * x_0.to(device)
+#                                + sqrt_one_minus_alphas_cum_prod_t.to(device) * noise.to(device), -1, 1)
 
 
 class StableDiffuser(L.LightningModule):
