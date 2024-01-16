@@ -11,7 +11,7 @@ A second solution based on stable diffusion and the generative adversarial frame
 Vanilla stable diffusion was also experienced, but the results provided by the solution above were better.
 
 ***
-Experiments on the literature review corresponding to the first solution: U-Net based discriminator, Top-k training, ``Better Cycles", along with the influence of various parameters:
+Experiments on the literature review corresponding to the first solution: U-Net based discriminator, Top-k training, "Better Cycles", along with the influence of various parameters:
 * batch size
 * identity loss ratio
 * cycle loss ratio

@@ -5,7 +5,7 @@
 
 ***
 The solution builds a Cycle GAN model (having a U-Net model as generator) with a suite of improvements regarding the loss functions and parameters: 
-* from literature - U-Net based discriminator, Top-k training, ``Better Cycles"
+* from literature - U-Net based discriminator, Top-k training, "Better Cycles"
 * own contribution - output-to-input technique (see the Report).
 
 ***
